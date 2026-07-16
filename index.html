@@ -1,441 +1,892 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AR ตารางธาตุ</title>
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AR ตารางธาตุ - เกมการศึกษา</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+<!-- MediaPipe Hands สำหรับตรวจจับมือ -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<style>
+  @font-face {
+    font-family: 'Kanit-fallback';
+  }
+  * { font-family: 'Kanit', 'Noto Sans Thai', -apple-system, sans-serif; }
+  @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800&family=Baloo+2:wght@600;700;800&display=swap');
 
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    background: #1a0d2e;
+  }
 
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Mali:wght@400;600;700&display=swap');
+  #game-root {
+    width: 100vw; height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    background: radial-gradient(ellipse at top, #2d1b4e 0%, #1a0d2e 60%, #0d0620 100%);
+  }
 
-        body {
-            font-family: 'Mali', cursive;
-            background-color: #1a1a2e;
-            margin: 0;
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            touch-action: none;
-        }
+  #stage-wrap {
+    position: relative;
+    width: min(100vw, 177.78vh);
+    height: min(100vh, 56.25vw);
+    max-width: 1280px;
+    max-height: 720px;
+    aspect-ratio: 16 / 9;
+    box-shadow: 0 0 80px rgba(168, 85, 247, 0.35), 0 0 0 3px rgba(216, 180, 254, 0.25);
+    border-radius: 20px;
+    overflow: hidden;
+    background: #241442;
+  }
 
-        #game-container {
-            position: relative;
-            width: 100%;
-            max-width: 1280px;
-            aspect-ratio: 16 / 9;
-            background: radial-gradient(circle at center, #2a2a4a 0%, #111122 100%);
-            border-radius: 24px;
-            box-shadow: 0 0 40px rgba(138, 43, 226, 0.4), inset 0 0 20px rgba(255,255,255,0.1);
-            overflow: hidden;
-        }
+  /* พื้นหลังลวดลายวิ้งๆ แบบห้องทดลองวิทยาศาสตร์เวทมนตร์ */
+  #bg-sparkle {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(circle at 15% 20%, rgba(217,180,255,0.18) 0%, transparent 35%),
+      radial-gradient(circle at 85% 15%, rgba(139,92,246,0.25) 0%, transparent 40%),
+      radial-gradient(circle at 50% 90%, rgba(96,165,250,0.15) 0%, transparent 45%),
+      linear-gradient(160deg, #2d1b4e 0%, #3b1f63 45%, #1a0d2e 100%);
+    z-index: 0;
+  }
+  .twinkle {
+    position: absolute; border-radius: 50%;
+    background: #fff; opacity: 0.8;
+    animation: twinkle-anim 2.4s ease-in-out infinite;
+  }
+  @keyframes twinkle-anim {
+    0%, 100% { opacity: 0.15; transform: scale(0.7); }
+    50% { opacity: 0.95; transform: scale(1.15); }
+  }
+  .bubble-flask {
+    position: absolute; opacity: 0.14; font-size: 3rem;
+    animation: float-flask 8s ease-in-out infinite;
+  }
+  @keyframes float-flask {
+    0%, 100% { transform: translateY(0) rotate(-4deg); }
+    50% { transform: translateY(-18px) rotate(4deg); }
+  }
 
-        .stars {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background-image: 
-                radial-gradient(2px 2px at 20px 30px, #eee, rgba(0,0,0,0)),
-                radial-gradient(2px 2px at 40px 70px, #fff, rgba(0,0,0,0)),
-                radial-gradient(2px 2px at 50px 160px, #ddd, rgba(0,0,0,0)),
-                radial-gradient(2px 2px at 90px 40px, #fff, rgba(0,0,0,0)),
-                radial-gradient(2px 2px at 130px 80px, #fff, rgba(0,0,0,0)),
-                radial-gradient(2px 2px at 160px 120px, #ddd, rgba(0,0,0,0));
-            background-repeat: repeat;
-            background-size: 200px 200px;
-            animation: twinkle 4s infinite;
-            opacity: 0.5;
-            pointer-events: none;
-        }
+  #game-canvas, #cursor-canvas, #video-feed {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    z-index: 2;
+  }
+  #video-feed { transform: scaleX(-1); opacity: 0; z-index: 1; object-fit: cover; }
+  #cursor-canvas { z-index: 5; pointer-events: none; }
+  #game-canvas { z-index: 3; }
 
-        @keyframes twinkle {
-            0% { opacity: 0.3; }
-            50% { opacity: 0.6; }
-            100% { opacity: 0.3; }
-        }
+  .screen {
+    position: absolute; inset: 0; z-index: 10;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 2rem;
+  }
+  .hidden-screen { display: none !important; }
 
-        .btn-3d {
-            transition: all 0.1s;
-            box-shadow: 0px 8px 0px 0px #b45309;
-        }
-        .btn-3d:active {
-            transform: translateY(8px);
-            box-shadow: 0px 0px 0px 0px #b45309;
-        }
+  .title-font { font-family: 'Baloo 2', 'Kanit', sans-serif; }
 
-        @keyframes bounce-custom {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-15px); }
-        }
-        .animate-bounce-custom {
-            animation: bounce-custom 2s infinite ease-in-out;
-        }
+  .btn-3d {
+    font-family: 'Baloo 2', sans-serif;
+    background: linear-gradient(180deg, #c084fc 0%, #9333ea 100%);
+    border-bottom: 6px solid #6b21a8;
+    color: white;
+    transition: all 0.08s ease;
+    box-shadow: 0 4px 0 0 rgba(0,0,0,0.2), 0 8px 20px rgba(147,51,234,0.5);
+  }
+  .btn-3d:active {
+    transform: translateY(6px);
+    border-bottom-width: 0px;
+    box-shadow: none;
+  }
+  .btn-3d:hover { filter: brightness(1.08); }
 
-        @keyframes blink-red {
-            0%, 100% { color: white; text-shadow: 0 0 10px rgba(255,255,255,0.5); }
-            50% { color: #ff4444; text-shadow: 0 0 20px #ff0000; }
-        }
-        .time-warning { animation: blink-red 1s infinite; }
+  .glass-panel {
+    background: rgba(255,255,255,0.08);
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(216,180,254,0.35);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+  }
 
-        #webcam { display: none; }
-        
-        #game-canvas {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            z-index: 10;
-        }
+  .hud-pill {
+    background: rgba(45,27,78,0.75);
+    border: 2px solid rgba(216,180,254,0.4);
+    backdrop-filter: blur(6px);
+  }
 
-        .screen {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 20;
-            background: rgba(0,0,0,0.4);
-            backdrop-filter: blur(4px);
-        }
+  #timer-text.time-low { color: #f87171 !important; animation: blink-red 0.6s ease-in-out infinite; }
+  @keyframes blink-red {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.55; transform: scale(1.12); }
+  }
 
-        #ui-layer {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            z-index: 15;
-            pointer-events: none;
-            display: none;
-        }
+  .popup-msg {
+    position: absolute; left: 50%; top: 38%;
+    transform: translate(-50%, -50%) scale(0.5);
+    font-family: 'Baloo 2', sans-serif;
+    font-weight: 800; font-size: 2.2rem;
+    z-index: 20; pointer-events: none; opacity: 0;
+    text-shadow: 0 3px 0 rgba(0,0,0,0.25);
+  }
+  .popup-correct { animation: pop-bounce 0.7s ease-out forwards; color: #4ade80; }
+  .popup-wrong { animation: pop-bounce 0.7s ease-out forwards; color: #f87171; }
+  @keyframes pop-bounce {
+    0% { opacity: 0; transform: translate(-50%,-50%) scale(0.3); }
+    30% { opacity: 1; transform: translate(-50%,-50%) scale(1.25); }
+    50% { transform: translate(-50%,-50%) scale(1); }
+    80% { opacity: 1; }
+    100% { opacity: 0; transform: translate(-50%,-70%) scale(1); }
+  }
 
-        #center-target {
-            text-align: center;
-            pointer-events: none;
-        }
-        
-        .target-box {
-            background: rgba(255, 255, 255, 0.15);
-            border: 4px solid rgba(255, 255, 255, 0.4);
-            border-radius: 30px;
-            padding: 15px 40px;
-            backdrop-filter: blur(8px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-        }
-    </style>
+  #category-banner {
+    font-family: 'Baloo 2', sans-serif;
+  }
+
+  .fade-in { animation: fadeIn 0.5s ease forwards; }
+  @keyframes fadeIn { from {opacity:0; transform: translateY(-10px);} to {opacity:1; transform: translateY(0);} }
+
+  .loader-ring {
+    border: 6px solid rgba(255,255,255,0.15);
+    border-top-color: #d8b4fe;
+    border-radius: 50%;
+    width: 56px; height: 56px;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #camera-fallback-note {
+    font-size: 0.8rem; color: #d8b4fe; opacity: 0.85;
+  }
+</style>
 </head>
 <body>
 
-<div id="game-container">
-    <div class="stars"></div>
-    <video id="webcam" autoplay playsinline></video>
+<div id="game-root">
+  <div id="stage-wrap">
+
+    <!-- พื้นหลังห้องแล็บเวทมนตร์ -->
+    <div id="bg-sparkle"></div>
+    <div id="bg-decor" class="absolute inset-0 z-0 pointer-events-none overflow-hidden"></div>
+
+    <!-- วิดีโอกล้อง (ซ่อนไว้ ใช้เป็น input ของ MediaPipe) -->
+    <video id="video-feed" autoplay playsinline muted></video>
+
+    <!-- แคนวาสหลักของเกม (ลูกบอลตกลงมา) -->
     <canvas id="game-canvas"></canvas>
+    <!-- แคนวาสเคอร์เซอร์มือ (แสงเรืองรอง) -->
+    <canvas id="cursor-canvas"></canvas>
 
-    <div id="ui-layer">
-        <div class="absolute top-6 left-6 bg-white/20 backdrop-blur-md px-6 py-2 rounded-full border-2 border-white/50 text-white font-bold text-2xl shadow-lg">
-            คะแนน: <span id="score-display" class="text-yellow-300 text-3xl">0</span>
-        </div>
-
-        <div class="absolute top-6 left-1/2 -translate-x-1/2 z-30">
-            <div id="center-target" class="animate-bounce-custom flex flex-col items-center">
-                <div class="target-box flex items-center justify-center min-w-[250px] min-h-[100px]">
-                    <div id="target-text" class="text-6xl font-bold text-white drop-shadow-lg">โลหะ</div>
-                </div>
-                <div class="text-white/80 mt-2 font-semibold text-xl drop-shadow-md bg-black/30 px-4 py-1 rounded-full whitespace-nowrap">
-                    แตะธาตุที่ตรงกับหมวดหมู่นี้!
-                </div>
-            </div>
-        </div>
-
-        <div class="absolute top-6 right-6 bg-white/20 backdrop-blur-md px-6 py-2 rounded-full border-2 border-white/50 text-white font-bold text-2xl shadow-lg">
-            เวลา: <span id="time-display" class="text-3xl">30</span> วินาที
-        </div>
-    </div>
-
+    <!-- ========== หน้า START SCREEN ========== -->
     <div id="start-screen" class="screen">
-        <div class="bg-white/90 p-8 rounded-3xl shadow-2xl text-center max-w-2xl border-4 border-purple-400">
-            <h1 class="text-5xl font-bold text-purple-700 mb-4 drop-shadow-sm">🧪 AR ตารางธาตุ ✨</h1>
-            <p class="text-xl text-gray-700 mb-6">
-                ขยับมือ (หรือใช้เมาส์) บังคับมือ <br>
-                เพื่อแตะลูกบอล <b>"สัญลักษณ์ธาตุ"</b>ให้ตรงกับ <b>"ประเภทของธาตุ"</b>ที่อยู่กลางจอ
-            </p>
-            <div class="flex justify-center gap-4 mb-8 text-lg">
-                <div class="bg-blue-100 p-3 rounded-xl font-bold text-blue-800">โลหะ<br><span class="text-sm font-normal text-blue-600">(Li, Fe, Au...)</span></div>
-                <div class="bg-green-100 p-3 rounded-xl font-bold text-green-800">อโลหะ<br><span class="text-sm font-normal text-green-600">(H, O, C...)</span></div>
-                <div class="bg-purple-100 p-3 rounded-xl font-bold text-purple-800">กึ่งโลหะ<br><span class="text-sm font-normal text-purple-600">(B, Si, As...)</span></div>
-            </div>
-            <button onclick="startGame()" class="btn-3d bg-yellow-400 hover:bg-yellow-300 text-yellow-900 font-bold py-4 px-12 rounded-full text-3xl transition duration-200">
-                🚀เริ่มเกมเลย!
-            </button>
-            <p class="text-sm text-gray-500 mt-4">* ระบบจะขออนุญาตใช้งานกล้อง หากกล้องไม่ทำงานสามารถใช้เมาส์/ทัชแทนได้</p>
+      <div class="glass-panel rounded-3xl px-8 py-8 md:px-14 md:py-10 max-w-xl mx-auto">
+        <div class="text-6xl mb-2">🧪⚗️🔮</div>
+        <h1 class="title-font text-4xl md:text-5xl font-extrabold text-white mb-2" style="text-shadow:0 4px 0 #6b21a8, 0 8px 24px rgba(147,51,234,0.6);">
+          AR ตารางธาตุ
+        </h1>
+        <p class="text-purple-200 mb-6 text-sm md:text-base">ใช้มือของเธอ แตะแตกลูกบอลธาตุให้ตรงประเภท!</p>
+
+        <div class="text-left bg-black/20 rounded-2xl p-4 mb-6 text-purple-100 text-xs md:text-sm space-y-1.5">
+          <p>✋ <b>ยกมือขึ้นหน้ากล้อง</b> แล้วเลื่อนไปแตะลูกบอลที่ร่วงลงมา</p>
+          <p>🎯 แตะให้ตรงกับ <b>ประเภทของธาตุ</b> ที่ขึ้นกลางจอ (โลหะ / อโลหะ / กึ่งโลหะ)</p>
+          <p>✅ ตอบถูก +2 คะแนน &nbsp; ❌ ตอบผิด -1 คะแนน</p>
+          <p>⏱️ เวลาทั้งหมด 30 วินาที ลุยเลย!</p>
         </div>
+
+        <button id="btn-start" class="btn-3d w-full py-4 rounded-2xl text-2xl font-bold cursor-pointer">
+          🚀 เริ่มเกม
+        </button>
+        <p id="camera-fallback-note" class="mt-3">* ถ้าเปิดกล้องไม่ได้ ระบบจะให้ใช้เมาส์/นิ้วแตะแทนอัตโนมัติ</p>
+      </div>
     </div>
 
-    <div id="end-screen" class="screen" style="display: none;">
-        <div class="bg-white/95 p-10 rounded-3xl shadow-2xl text-center max-w-xl border-4 border-blue-400">
-            <h2 class="text-4xl font-bold text-gray-800 mb-2">หมดเวลา!⏰</h2>
-            <div class="text-2xl text-gray-600 mb-4">คุณทำคะแนนได้</div>
-            <div id="final-score" class="text-7xl font-bold text-purple-600 mb-4 drop-shadow-md">0</div>
-            <p id="end-message" class="text-2xl font-bold mb-8 text-green-500">ยอดเยี่ยมมาก!</p>
-            <button onclick="resetGame()" class="btn-3d bg-blue-500 hover:bg-blue-400 text-white font-bold py-3 px-10 rounded-full text-2xl">
-                🔄เล่นอีกครั้ง
-            </button>
-        </div>
+    <!-- ========== หน้า LOADING ========== -->
+    <div id="loading-screen" class="screen hidden-screen">
+      <div class="loader-ring mb-4"></div>
+      <p class="text-purple-100 text-lg font-medium" id="loading-text">กำลังเปิดกล้องและโหลดระบบตรวจจับมือ...</p>
     </div>
+
+    <!-- ========== หน้า GAME UI (HUD) ========== -->
+    <div id="hud" class="hidden-screen absolute inset-0 z-10 pointer-events-none">
+      <!-- คะแนน มุมขวาบน -->
+      <div class="hud-pill absolute top-3 right-3 rounded-2xl px-4 py-2 text-right">
+        <div class="text-purple-300 text-[10px] md:text-xs tracking-wide">คะแนน</div>
+        <div id="score-text" class="title-font text-2xl md:text-3xl font-extrabold text-yellow-300">0</div>
+      </div>
+      <!-- เวลา มุมซ้ายบน -->
+      <div class="hud-pill absolute top-3 left-3 rounded-2xl px-4 py-2">
+        <div class="text-purple-300 text-[10px] md:text-xs tracking-wide">เวลา</div>
+        <div id="timer-text" class="title-font text-2xl md:text-3xl font-extrabold text-cyan-300">30</div>
+      </div>
+
+      <!-- ป้ายประเภทธาตุ กึ่งกลางบนจอ -->
+      <div id="category-banner" class="absolute top-2 left-1/2 -translate-x-1/2 flex flex-col items-center">
+        <div class="hud-pill rounded-2xl px-6 py-2 flex items-center gap-2 shadow-lg">
+          <span id="category-icon" class="text-3xl md:text-4xl">⚙️</span>
+          <span id="category-label" class="text-white font-bold text-lg md:text-2xl">โลหะ</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Popup ข้อความถูก/ผิด (สร้างแบบ dynamic ใน JS) -->
+    <div id="popup-layer" class="absolute inset-0 z-20 pointer-events-none"></div>
+
+    <!-- ========== หน้า END SCREEN ========== -->
+    <div id="end-screen" class="screen hidden-screen">
+      <div class="glass-panel rounded-3xl px-8 py-8 md:px-14 md:py-10 max-w-md mx-auto">
+        <div id="end-emoji" class="text-6xl mb-2">🎉</div>
+        <h2 class="title-font text-3xl font-extrabold text-white mb-1">จบเกม!</h2>
+        <p id="end-message" class="text-purple-100 text-lg font-medium mb-4">ยอดเยี่ยมมาก!</p>
+
+        <div class="grid grid-cols-2 gap-3 mb-6">
+          <div class="bg-black/25 rounded-xl py-3">
+            <div class="text-purple-300 text-xs">คะแนนรวม</div>
+            <div id="final-score" class="title-font text-3xl font-extrabold text-yellow-300">0</div>
+          </div>
+          <div class="bg-black/25 rounded-xl py-3">
+            <div class="text-purple-300 text-xs">ตอบถูก</div>
+            <div id="final-correct" class="title-font text-3xl font-extrabold text-green-400">0 ข้อ</div>
+          </div>
+        </div>
+
+        <button id="btn-restart" class="btn-3d w-full py-4 rounded-2xl text-xl font-bold cursor-pointer">
+          🔄 เล่นอีกครั้ง
+        </button>
+      </div>
+    </div>
+
+  </div>
 </div>
 
 <script>
-    const elementData = {
-        'อโลหะ': ['He', 'H', 'C', 'N', 'O', 'F', 'Ne', 'P', 'S', 'Cl', 'Ar'],
-        'โลหะ': ['Li', 'Be', 'Na', 'Mg', 'K', 'Ca', 'Cr', 'Fe', 'Co', 'Ni', 'Cu', 'Zn', 'Ag', 'Au', 'Al'],
-        'กึ่งโลหะ': ['B', 'Si', 'Ge', 'As']
-    };
+/* =========================================================================
+   AR ตารางธาตุ - เกมการศึกษา
+   โครงสร้างไฟล์เดียว: Tailwind (UI) + Canvas 2D (เกม/ลูกบอล) + MediaPipe Hands (AR)
+   + Canvas-Confetti (เอฟเฟกต์) + Web Audio API (เสียงสังเคราะห์ ไม่ใช้ไฟล์ mp3)
+   ========================================================================= */
 
-    const categories = [
-        { name: 'โลหะ', color: '#3b82f6' },   
-        { name: 'อโลหะ', color: '#10b981' },  
-        { name: 'กึ่งโลหะ', color: '#a855f7' } 
-    ];
+// ---------- ข้อมูลธาตุ แบ่งตามประเภท ----------
+const ELEMENTS = {
+  metal:     ["Li","Be","Na","Mg","K","Ca","Cr","Fe","Co","Ni","Cu","Zn","Ag","Au","Al"],
+  nonmetal:  ["He","H","C","N","O","F","Ne","P","S","Cl","Ar"],
+  metalloid: ["B","Si","Ge","As"]
+};
+const CATEGORY_INFO = {
+  metal:     { label: "โลหะ",     icon: "⚙️", duration: 12, color: "#facc15" },
+  nonmetal:  { label: "อโลหะ",    icon: "💧", duration: 12, color: "#38bdf8" },
+  metalloid: { label: "กึ่งโลหะ", icon: "🔷", duration: 6,  color: "#34d399" }
+};
+const CATEGORY_KEYS = ["metal","nonmetal","metalloid"];
 
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    function playTone(freq, type, duration, vol=0.5, slideFreq=null) {
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-        if (slideFreq) osc.frequency.exponentialRampToValueAtTime(slideFreq, audioCtx.currentTime + duration);
-        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start();
-        osc.stop(audioCtx.currentTime + duration);
+// ---------- สถานะเกม ----------
+let state = {
+  running: false,
+  score: 0,
+  correctCount: 0,
+  wrongCount: 0,
+  timeLeft: 30,
+  totalTime: 30,
+  categoryOrder: [],
+  categoryIdx: 0,
+  categoryTimeLeft: 0,
+  currentCategory: null,
+  balls: [],
+  lastSpawn: 0,
+  spawnInterval: 950,
+  handX: null, handY: null, handActive: false,
+  usingMouseFallback: false,
+  animFrame: null,
+  timerInterval: null,
+};
+
+// ---------- Canvas setup ----------
+const gameCanvas = document.getElementById('game-canvas');
+const gctx = gameCanvas.getContext('2d');
+const cursorCanvas = document.getElementById('cursor-canvas');
+const cctx = cursorCanvas.getContext('2d');
+const stageWrap = document.getElementById('stage-wrap');
+
+function resizeCanvases() {
+  const rect = stageWrap.getBoundingClientRect();
+  [gameCanvas, cursorCanvas].forEach(c => {
+    c.width = rect.width;
+    c.height = rect.height;
+  });
+}
+window.addEventListener('resize', resizeCanvases);
+resizeCanvases();
+
+// ---------- พื้นหลังวิ้งๆ (สร้างดาวกระพริบ + ขวดลอย) ----------
+function setupBgDecor() {
+  const decor = document.getElementById('bg-decor');
+  decor.innerHTML = '';
+  for (let i = 0; i < 28; i++) {
+    const t = document.createElement('div');
+    t.className = 'twinkle';
+    const size = 2 + Math.random() * 3;
+    t.style.width = size + 'px';
+    t.style.height = size + 'px';
+    t.style.left = Math.random() * 100 + '%';
+    t.style.top = Math.random() * 100 + '%';
+    t.style.animationDelay = (Math.random() * 3) + 's';
+    decor.appendChild(t);
+  }
+  const flaskEmojis = ["🧫","⚗️","🧪","🔬","✨"];
+  for (let i = 0; i < 6; i++) {
+    const f = document.createElement('div');
+    f.className = 'bubble-flask';
+    f.textContent = flaskEmojis[i % flaskEmojis.length];
+    f.style.left = (5 + Math.random() * 90) + '%';
+    f.style.top = (5 + Math.random() * 85) + '%';
+    f.style.animationDelay = (Math.random() * 4) + 's';
+    f.style.animationDuration = (6 + Math.random() * 4) + 's';
+    decor.appendChild(f);
+  }
+}
+setupBgDecor();
+
+// =========================================================================
+// ระบบเสียงสังเคราะห์ด้วย Web Audio API (ไม่ใช้ไฟล์เสียงภายนอก)
+// =========================================================================
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playTone(freq, duration, type = 'sine', volume = 0.25, delay = 0, glideTo = null) {
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime + delay;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t0);
+  if (glideTo) osc.frequency.exponentialRampToValueAtTime(glideTo, t0 + duration);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(volume, t0 + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(t0);
+  osc.stop(t0 + duration + 0.05);
+}
+
+// เสียง "ป๊อป" ลูกบอลแตก
+function sfxPop() {
+  ensureAudio();
+  playTone(520, 0.12, 'triangle', 0.3, 0, 180);
+}
+// เสียง "ติ๊งต่อง" ตอบถูก
+function sfxCorrect() {
+  ensureAudio();
+  playTone(880, 0.12, 'sine', 0.25, 0);
+  playTone(1320, 0.18, 'sine', 0.22, 0.09);
+}
+// เสียง "แป่ววว" ตอบผิด
+function sfxWrong() {
+  ensureAudio();
+  playTone(300, 0.35, 'sawtooth', 0.18, 0, 120);
+}
+// เสียงเปลี่ยนหมวดธาตุ
+function sfxCategorySwitch() {
+  ensureAudio();
+  playTone(660, 0.15, 'square', 0.15, 0);
+}
+// เสียงจบเกม - ชนะ
+function sfxWinFanfare() {
+  ensureAudio();
+  [523, 659, 784, 1046].forEach((f, i) => playTone(f, 0.28, 'triangle', 0.28, i * 0.13));
+}
+// เสียงจบเกม - ธรรมดา
+function sfxEndNormal() {
+  ensureAudio();
+  playTone(440, 0.3, 'sine', 0.2, 0);
+  playTone(330, 0.35, 'sine', 0.18, 0.18);
+}
+
+// =========================================================================
+// ลูกบอล 3D (สีม่วง มีตัวอักษรสัญลักษณ์ธาตุตรงกลาง)
+// =========================================================================
+class Ball {
+  constructor(symbol, category, canvasW) {
+    this.symbol = symbol;
+    this.category = category;
+    this.r = 34;
+    this.x = this.r + Math.random() * (canvasW - this.r * 2);
+    this.y = -60;
+    this.speed = 1.3 + Math.random() * 1.1; // ความเร็วแตกต่างกันเล็กน้อย
+    this.rotation = Math.random() * Math.PI * 2;
+    this.rotSpeed = (Math.random() - 0.5) * 0.02;
+    this.popped = false;
+    this.popProgress = 0; // 0->1 แอนิเมชันแฟบหาย
+    this.shaking = false;
+    this.shakeTime = 0;
+    this.alive = true;
+    this.hue = 265 + Math.random() * 20; // โทนม่วง
+  }
+
+  update(dt) {
+    if (this.popped) {
+      this.popProgress += dt * 4.5;
+      if (this.popProgress >= 1) this.alive = false;
+      return;
+    }
+    if (this.shaking) {
+      this.shakeTime += dt * 30;
+      if (this.shakeTime > 1) { this.shaking = false; this.shakeTime = 0; }
+    }
+    this.y += this.speed * dt * 60;
+    this.rotation += this.rotSpeed;
+    if (this.y - this.r > gameCanvas.height) this.alive = false;
+  }
+
+  draw(ctx) {
+    ctx.save();
+    let dx = 0;
+    if (this.shaking) {
+      dx = Math.sin(this.shakeTime * Math.PI * 8) * 6;
+    }
+    let scale = 1;
+    let alpha = 1;
+    if (this.popped) {
+      scale = Math.max(0, 1 - this.popProgress * 1.15);
+      alpha = Math.max(0, 1 - this.popProgress);
+    }
+    ctx.translate(this.x + dx, this.y);
+    ctx.scale(scale, scale);
+    ctx.globalAlpha = alpha;
+
+    // เงาใต้ลูกบอล
+    ctx.save();
+    ctx.translate(0, this.r * 0.75);
+    ctx.scale(1, 0.35);
+    ctx.beginPath();
+    ctx.arc(0, 0, this.r * 0.85, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(0,0,0,0.18)";
+    ctx.fill();
+    ctx.restore();
+
+    // ทรงกลม 3D แบบไล่เฉด (โทนม่วงสด)
+    const grad = ctx.createRadialGradient(-this.r * 0.35, -this.r * 0.35, this.r * 0.1, 0, 0, this.r * 1.05);
+    grad.addColorStop(0, `hsl(${this.hue}, 95%, 78%)`);
+    grad.addColorStop(0.45, `hsl(${this.hue}, 88%, 62%)`);
+    grad.addColorStop(1, `hsl(${this.hue - 10}, 80%, 38%)`);
+    ctx.beginPath();
+    ctx.arc(0, 0, this.r, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // ขอบเรืองแสง
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = "rgba(255,255,255,0.55)";
+    ctx.stroke();
+
+    // ไฮไลต์มันวาว
+    ctx.beginPath();
+    ctx.ellipse(-this.r * 0.32, -this.r * 0.38, this.r * 0.28, this.r * 0.16, -0.5, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.65)";
+    ctx.fill();
+
+    // ตัวอักษรสัญลักษณ์ธาตุ
+    ctx.fillStyle = "#fff";
+    ctx.font = `800 ${this.r * 0.78}px 'Baloo 2', sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.shadowColor = "rgba(0,0,0,0.35)";
+    ctx.shadowBlur = 4;
+    ctx.fillText(this.symbol, 0, 1);
+
+    ctx.restore();
+  }
+
+  containsPoint(px, py) {
+    const dx = px - this.x, dy = py - this.y;
+    return Math.sqrt(dx * dx + dy * dy) <= this.r * 1.15;
+  }
+}
+
+// =========================================================================
+// การสุ่มลำดับหมวดธาตุ + สุ่มธาตุ
+// =========================================================================
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function pickRandomElement(category) {
+  const list = ELEMENTS[category];
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+function pickWrongCategory(currentCategory) {
+  const others = CATEGORY_KEYS.filter(c => c !== currentCategory);
+  return others[Math.floor(Math.random() * others.length)];
+}
+
+// =========================================================================
+// ตัวจัดการหมวดธาตุ (เปลี่ยนทุก 12/12/6 วินาที ตามลำดับที่สุ่ม)
+// =========================================================================
+function setupCategoryOrder() {
+  state.categoryOrder = shuffleArray(CATEGORY_KEYS);
+  state.categoryIdx = 0;
+  applyCategory(state.categoryOrder[0]);
+}
+
+function applyCategory(catKey) {
+  state.currentCategory = catKey;
+  state.categoryTimeLeft = CATEGORY_INFO[catKey].duration;
+  const info = CATEGORY_INFO[catKey];
+  const iconEl = document.getElementById('category-icon');
+  const labelEl = document.getElementById('category-label');
+  iconEl.textContent = info.icon;
+  labelEl.textContent = info.label;
+  labelEl.style.color = info.color;
+  const banner = document.querySelector('#category-banner > div');
+  banner.classList.remove('fade-in');
+  void banner.offsetWidth;
+  banner.classList.add('fade-in');
+  sfxCategorySwitch();
+}
+
+// =========================================================================
+// การสร้างลูกบอลใหม่ (50-60% เป็นคำตอบที่ถูกต้อง)
+// =========================================================================
+function spawnBall() {
+  const isCorrect = Math.random() < 0.55; // สัดส่วนคำตอบถูก 50-60%
+  let category, symbol;
+  if (isCorrect) {
+    category = state.currentCategory;
+  } else {
+    category = pickWrongCategory(state.currentCategory);
+  }
+  symbol = pickRandomElement(category);
+  const ball = new Ball(symbol, category, gameCanvas.width);
+  state.balls.push(ball);
+}
+
+// =========================================================================
+// Popup ข้อความ ถูก/ผิด
+// =========================================================================
+function showPopup(text, correct, x, y) {
+  const layer = document.getElementById('popup-layer');
+  const el = document.createElement('div');
+  el.className = 'popup-msg ' + (correct ? 'popup-correct' : 'popup-wrong');
+  el.textContent = text;
+  el.style.left = ((x / gameCanvas.width) * 100) + '%';
+  el.style.top = ((y / gameCanvas.height) * 100) + '%';
+  layer.appendChild(el);
+  setTimeout(() => el.remove(), 750);
+}
+
+// =========================================================================
+// Mini confetti ที่จุดแตกลูกบอล
+// =========================================================================
+function miniConfettiAt(x, y) {
+  const rect = stageWrap.getBoundingClientRect();
+  const originX = (x / gameCanvas.width);
+  const originY = (y / gameCanvas.height);
+  confetti({
+    particleCount: 18,
+    spread: 55,
+    startVelocity: 22,
+    scalar: 0.7,
+    origin: { x: originX, y: originY },
+    colors: ['#c084fc', '#f0abfc', '#facc15', '#fff'],
+    disableForReducedMotion: true
+  });
+}
+
+// =========================================================================
+// การกระทบ / การตอบ (ทั้ง AR มือ และ Mouse/Touch fallback)
+// =========================================================================
+function tryPopAt(px, py) {
+  for (let i = state.balls.length - 1; i >= 0; i--) {
+    const b = state.balls[i];
+    if (b.alive && !b.popped && !b.shaking && b.containsPoint(px, py)) {
+      handleBallHit(b);
+      return;
+    }
+  }
+}
+
+function handleBallHit(ball) {
+  const isCorrect = ball.category === state.currentCategory;
+  if (isCorrect) {
+    ball.popped = true;
+    state.score += 2;
+    state.correctCount++;
+    sfxPop();
+    sfxCorrect();
+    miniConfettiAt(ball.x, ball.y);
+    showPopup('ถูกต้อง! +2', true, ball.x, ball.y);
+  } else {
+    ball.shaking = true;
+    state.score -= 1;
+    state.wrongCount++;
+    sfxWrong();
+    showPopup('ลองใหม่ -1', false, ball.x, ball.y);
+  }
+  updateHUD();
+}
+
+// =========================================================================
+// เคอร์เซอร์มือ (แสงเรืองรองลอยตามมือ)
+// =========================================================================
+function drawHandCursor() {
+  cctx.clearRect(0, 0, cursorCanvas.width, cursorCanvas.height);
+  if (state.handX === null || !state.handActive) return;
+  const x = state.handX, y = state.handY;
+
+  const glow = cctx.createRadialGradient(x, y, 2, x, y, 42);
+  glow.addColorStop(0, 'rgba(216,180,254,0.85)');
+  glow.addColorStop(0.5, 'rgba(168,85,247,0.35)');
+  glow.addColorStop(1, 'rgba(168,85,247,0)');
+  cctx.beginPath();
+  cctx.arc(x, y, 42, 0, Math.PI * 2);
+  cctx.fillStyle = glow;
+  cctx.fill();
+
+  cctx.beginPath();
+  cctx.arc(x, y, 9, 0, Math.PI * 2);
+  cctx.fillStyle = '#fff';
+  cctx.shadowColor = '#d8b4fe';
+  cctx.shadowBlur = 14;
+  cctx.fill();
+}
+
+// =========================================================================
+// ระบบตรวจจับมือด้วย MediaPipe Hands
+// =========================================================================
+const videoEl = document.getElementById('video-feed');
+let handsDetector = null;
+let mpCamera = null;
+
+function onHandsResult(results) {
+  if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+    const lm = results.multiHandLandmarks[0][9]; // จุดกึ่งกลางฝ่ามือ
+    // กระจกกลับด้าน (mirror) เพราะวิดีโอถูก flip ด้วย CSS scaleX(-1)
+    const nx = 1 - lm.x;
+    state.handX = nx * gameCanvas.width;
+    state.handY = lm.y * gameCanvas.height;
+    state.handActive = true;
+    if (state.running) tryPopAt(state.handX, state.handY);
+  } else {
+    state.handActive = false;
+  }
+}
+
+async function initHandTracking() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+    videoEl.srcObject = stream;
+    await new Promise(res => { videoEl.onloadedmetadata = () => { videoEl.play(); res(); }; });
+
+    handsDetector = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+    handsDetector.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 0,
+      minDetectionConfidence: 0.6,
+      minTrackingConfidence: 0.6
+    });
+    handsDetector.onResults(onHandsResult);
+
+    mpCamera = new Camera(videoEl, {
+      onFrame: async () => { await handsDetector.send({ image: videoEl }); },
+      width: 640, height: 480
+    });
+    mpCamera.start();
+    state.usingMouseFallback = false;
+    return true;
+  } catch (err) {
+    console.warn('ไม่สามารถเปิดกล้องได้ ใช้ระบบเมาส์/สัมผัสแทน', err);
+    state.usingMouseFallback = true;
+    return false;
+  }
+}
+
+// ---------- Mouse / Touch Fallback ----------
+function setupPointerFallback() {
+  function pointerMove(clientX, clientY) {
+    const rect = stageWrap.getBoundingClientRect();
+    const x = (clientX - rect.left) * (gameCanvas.width / rect.width);
+    const y = (clientY - rect.top) * (gameCanvas.height / rect.height);
+    state.handX = x; state.handY = y; state.handActive = true;
+  }
+  stageWrap.addEventListener('mousemove', (e) => {
+    if (!state.usingMouseFallback) return;
+    pointerMove(e.clientX, e.clientY);
+    if (state.running) tryPopAt(state.handX, state.handY);
+  });
+  stageWrap.addEventListener('mouseleave', () => { if (state.usingMouseFallback) state.handActive = false; });
+  stageWrap.addEventListener('touchmove', (e) => {
+    if (!state.usingMouseFallback) return;
+    const t = e.touches[0];
+    if (!t) return;
+    pointerMove(t.clientX, t.clientY);
+    if (state.running) tryPopAt(state.handX, state.handY);
+    e.preventDefault();
+  }, { passive: false });
+  stageWrap.addEventListener('click', (e) => {
+    if (!state.usingMouseFallback) return;
+    pointerMove(e.clientX, e.clientY);
+    if (state.running) tryPopAt(state.handX, state.handY);
+  });
+}
+setupPointerFallback();
+
+// =========================================================================
+// HUD Update
+// =========================================================================
+function updateHUD() {
+  document.getElementById('score-text').textContent = state.score;
+  document.getElementById('timer-text').textContent = Math.ceil(state.timeLeft);
+  const timerEl = document.getElementById('timer-text');
+  if (state.timeLeft <= 10) timerEl.classList.add('time-low');
+  else timerEl.classList.remove('time-low');
+}
+
+// =========================================================================
+// Game Loop
+// =========================================================================
+let lastFrameTime = 0;
+function gameLoop(ts) {
+  if (!state.running) return;
+  if (!lastFrameTime) lastFrameTime = ts;
+  const dt = Math.min((ts - lastFrameTime) / 1000, 0.05);
+  lastFrameTime = ts;
+
+  // สร้างลูกบอลใหม่ตามช่วงเวลา
+  if (ts - state.lastSpawn > state.spawnInterval) {
+    spawnBall();
+    state.lastSpawn = ts;
+  }
+
+  gctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+  for (let i = state.balls.length - 1; i >= 0; i--) {
+    const b = state.balls[i];
+    b.update(dt);
+    b.draw(gctx);
+    if (!b.alive) state.balls.splice(i, 1);
+  }
+
+  drawHandCursor();
+
+  state.animFrame = requestAnimationFrame(gameLoop);
+}
+
+// =========================================================================
+// Timer หลัก (30 วินาที) + จัดการเปลี่ยนหมวดธาตุ
+// =========================================================================
+function startTimers() {
+  state.timerInterval = setInterval(() => {
+    if (!state.running) return;
+    state.timeLeft -= 0.1;
+    state.categoryTimeLeft -= 0.1;
+    updateHUD();
+
+    if (state.categoryTimeLeft <= 0) {
+      state.categoryIdx++;
+      if (state.categoryIdx < state.categoryOrder.length) {
+        applyCategory(state.categoryOrder[state.categoryIdx]);
+      }
     }
 
-    const sounds = {
-        pop: () => playTone(800, 'sine', 0.1, 0.5, 300),
-        dingDong: () => {
-            playTone(659.25, 'sine', 0.15, 0.3);
-            setTimeout(() => playTone(523.25, 'sine', 0.3, 0.3), 150);
-        },
-        buzzer: () => playTone(150, 'sawtooth', 0.3, 0.4, 100),
-        win: () => {
-            [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => {
-                setTimeout(() => playTone(f, 'sine', 0.2, 0.3), i * 100);
-            });
-        }
-    };
-
-    const canvas = document.getElementById('game-canvas');
-    const ctx = canvas.getContext('2d');
-    let width, height, gameState = 'START', score = 0, timeLeft = 30, timerInterval;
-    let activeBalls = [], popups = [], currentCategoryIndex = 0, rounds = [], currentRoundIndex = 0, roundTimeLeft = 0;
-    let cursor = { x: -100, y: -100, isTracking: false };
-
-    function resizeCanvas() {
-        const container = document.getElementById('game-container');
-        canvas.width = container.clientWidth;
-        canvas.height = container.clientHeight;
-        width = canvas.width;
-        height = canvas.height;
+    if (state.timeLeft <= 0) {
+      endGame();
     }
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
+  }, 100);
+}
 
-    const videoElement = document.getElementById('webcam');
-    function updateCursorFallback(e) {
-        if (gameState !== 'PLAY' && gameState !== 'START') return;
-        const rect = canvas.getBoundingClientRect();
-        let clientX = e.clientX || (e.touches && e.touches[0].clientX);
-        let clientY = e.clientY || (e.touches && e.touches[0].clientY);
-        if (clientX !== undefined) {
-            cursor.x = clientX - rect.left;
-            cursor.y = clientY - rect.top;
-            cursor.isTracking = true;
-        }
-    }
-    canvas.addEventListener('mousemove', updateCursorFallback);
-    canvas.addEventListener('touchmove', updateCursorFallback, {passive: true});
+// =========================================================================
+// เริ่ม / จบเกม
+// =========================================================================
+function showScreen(id) {
+  ['start-screen','loading-screen','hud','end-screen'].forEach(s => {
+    document.getElementById(s).classList.add('hidden-screen');
+  });
+  document.getElementById(id).classList.remove('hidden-screen');
+}
 
-    async function initCamera() {
-        try {
-            const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-            hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
-            hands.onResults((results) => {
-                if (gameState !== 'PLAY') return;
-                if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                    const indexFinger = results.multiHandLandmarks[0][8];
-                    cursor.x = (1 - indexFinger.x) * width; 
-                    cursor.y = indexFinger.y * height;
-                    cursor.isTracking = true;
-                }
-            });
-            const camera = new Camera(videoElement, {
-                onFrame: async () => { await hands.send({image: videoElement}); },
-                width: 640, height: 480
-            });
-            camera.start();
-        } catch (e) { console.log("Camera init failed, using mouse fallback.", e); }
-    }
+async function beginGameFlow() {
+  ensureAudio();
+  showScreen('loading-screen');
+  document.getElementById('loading-text').textContent = 'กำลังเปิดกล้องและโหลดระบบตรวจจับมือ...';
+  const ok = await initHandTracking();
+  if (!ok) {
+    document.getElementById('loading-text').textContent = 'ไม่พบกล้อง กำลังสลับเป็นโหมดสัมผัส/เมาส์...';
+    await new Promise(r => setTimeout(r, 800));
+  }
+  startGame();
+}
 
-    class Ball {
-        constructor() {
-            this.radius = Math.min(width, height) * 0.08; 
-            this.x = Math.random() * (width - this.radius * 2) + this.radius;
-            this.y = -this.radius - (Math.random() * 200); 
-            const catKeys = Object.keys(elementData);
-            const currentTargetName = currentCategoryIndex >= 0 ? categories[currentCategoryIndex].name : null;
-            if (currentTargetName && Math.random() < 0.55) { this.type = currentTargetName; } else { this.type = catKeys[Math.floor(Math.random() * catKeys.length)]; }
-            const symbols = elementData[this.type];
-            this.symbol = symbols[Math.floor(Math.random() * symbols.length)];
-            this.colors = ['#c084fc', '#7e22ce'];
-            const catObj = categories.find(c => c.name === this.type);
-            this.confettiColor = catObj.color;
-            this.speed = (Math.random() * 2.5) + (height * 0.0045); 
-            this.isShaking = false;
-        }
-        update() {
-            if (this.isShaking) { this.y += this.speed * 0.5; } else { this.y += this.speed; }
-        }
-        draw(ctx) {
-            ctx.save();
-            ctx.translate(this.x, this.y);
-            const gradient = ctx.createRadialGradient(-this.radius*0.3, -this.radius*0.3, this.radius*0.1, 0, 0, this.radius);
-            gradient.addColorStop(0, '#ffffff');
-            gradient.addColorStop(0.3, this.colors[0]);
-            gradient.addColorStop(1, this.colors[1]);
-            ctx.beginPath();
-            ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
-            ctx.fillStyle = gradient;
-            ctx.fill();
-            ctx.fillStyle = 'white';
-            ctx.font = `bold ${this.radius * 0.8}px 'Mali', sans-serif`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(this.symbol, 0, 0);
-            ctx.restore();
-        }
-    }
+function startGame() {
+  state.running = true;
+  state.score = 0;
+  state.correctCount = 0;
+  state.wrongCount = 0;
+  state.timeLeft = 30;
+  state.balls = [];
+  state.lastSpawn = 0;
+  lastFrameTime = 0;
 
-    class PopupText {
-        constructor(x, y, text, color) { this.x = x; this.y = y; this.text = text; this.color = color; this.life = 1.0; }
-        update() { this.y -= 2; this.life -= 0.02; }
-        draw(ctx) {
-            ctx.save();
-            ctx.globalAlpha = Math.max(0, this.life);
-            ctx.fillStyle = this.color;
-            ctx.font = "bold 30px 'Mali', sans-serif";
-            ctx.textAlign = 'center';
-            ctx.fillText(this.text, this.x, this.y);
-            ctx.restore();
-        }
-    }
+  setupCategoryOrder();
+  updateHUD();
+  showScreen('hud');
 
-    function startGame() {
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        document.getElementById('start-screen').style.display = 'none';
-        document.getElementById('end-screen').style.display = 'none';
-        document.getElementById('ui-layer').style.display = 'block';
-        score = 0; timeLeft = 30; activeBalls = []; popups = [];
-        rounds = [{ name: 'โลหะ', duration: 12 }, { name: 'อโลหะ', duration: 12 }, { name: 'กึ่งโลหะ', duration: 6 }];
-        for (let i = rounds.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [rounds[i], rounds[j]] = [rounds[j], rounds[i]]; }
-        currentRoundIndex = 0; roundTimeLeft = rounds[currentRoundIndex].duration;
-        updateUI(); initCamera(); changeCategoryTo(rounds[currentRoundIndex].name); gameState = 'PLAY';
-        clearInterval(timerInterval);
-        timerInterval = setInterval(() => {
-            timeLeft--; roundTimeLeft--;
-            if (roundTimeLeft <= 0 && currentRoundIndex < rounds.length - 1) {
-                currentRoundIndex++; roundTimeLeft = rounds[currentRoundIndex].duration; changeCategoryTo(rounds[currentRoundIndex].name);
-            }
-            updateUI(); if (timeLeft <= 0) endGame();
-        }, 1000);
-        gameLoop();
-    }
+  if (state.timerInterval) clearInterval(state.timerInterval);
+  startTimers();
+  state.animFrame = requestAnimationFrame(gameLoop);
+}
 
-    function changeCategoryTo(categoryName) {
-        currentCategoryIndex = categories.findIndex(c => c.name === categoryName);
-        const cat = categories[currentCategoryIndex];
-        document.getElementById('target-text').innerText = cat.name;
-    }
+function endGame() {
+  state.running = false;
+  clearInterval(state.timerInterval);
+  cancelAnimationFrame(state.animFrame);
 
-    function updateUI() {
-        document.getElementById('score-display').innerText = score;
-        const timeDisp = document.getElementById('time-display');
-        timeDisp.innerText = timeLeft;
-        if (timeLeft <= 10) timeDisp.classList.add('time-warning'); else timeDisp.classList.remove('time-warning');
-    }
+  const finalScore = Math.max(0, state.score);
+  document.getElementById('final-score').textContent = finalScore;
+  document.getElementById('final-correct').textContent = state.correctCount + ' ข้อ';
 
-    function fireConfetti(x, y, color) {
-        confetti({ particleCount: 30, spread: 50, origin: { x: x / width, y: y / height }, colors: [color, '#ffffff'], disableForReducedMotion: true, zIndex: 100 });
-    }
+  let emoji = '🎉', msg = 'ยอดเยี่ยมมาก!';
+  if (state.correctCount >= 8) {
+    emoji = '🏆'; msg = 'ยอดเยี่ยมมาก!';
+    confetti({ particleCount: 160, spread: 100, origin: { y: 0.5 }, colors: ['#c084fc','#facc15','#f0abfc','#fff'] });
+    setTimeout(() => confetti({ particleCount: 100, spread: 120, origin: { y: 0.4 } }), 300);
+    sfxWinFanfare();
+  } else if (state.correctCount >= 5) {
+    emoji = '👍'; msg = 'เก่งมาก พยายามอีกนิดนะ!';
+    confetti({ particleCount: 60, spread: 70, origin: { y: 0.5 }, colors: ['#c084fc','#facc15'] });
+    sfxEndNormal();
+  } else {
+    emoji = '🌱'; msg = 'ไม่เป็นไร ลองเล่นใหม่อีกครั้งนะ!';
+    sfxEndNormal();
+  }
+  document.getElementById('end-emoji').textContent = emoji;
+  document.getElementById('end-message').textContent = msg;
 
-    function checkCollisions() {
-        if (!cursor.isTracking) return;
-        const currentTargetName = categories[currentCategoryIndex].name;
-        for (let i = activeBalls.length - 1; i >= 0; i--) {
-            let ball = activeBalls[i];
-            let dx = cursor.x - ball.x;
-            let dy = cursor.y - ball.y;
-            let distance = Math.sqrt(dx * dx + dy * dy);
-            if (distance < ball.radius + 25 && !ball.isShaking) {
-                if (ball.type === currentTargetName) {
-                    score += 2; sounds.pop(); setTimeout(() => sounds.dingDong(), 100);
-                    fireConfetti(ball.x, ball.y, ball.confettiColor);
-                    popups.push(new PopupText(ball.x, ball.y, "ถูกต้อง! +2", "#4ade80"));
-                    activeBalls.splice(i, 1); updateUI();
-                } else {
-                    score = Math.max(0, score - 1); sounds.buzzer();
-                    popups.push(new PopupText(ball.x, ball.y, "ผิด! -1", "#f87171"));
-                    activeBalls.splice(i, 1); updateUI();
-                }
-            }
-        }
-    }
+  // ปิดกล้อง
+  if (videoEl.srcObject) {
+    videoEl.srcObject.getTracks().forEach(t => t.stop());
+  }
+  if (mpCamera) { try { mpCamera.stop(); } catch(e) {} }
 
-    function gameLoop() {
-        if (gameState !== 'PLAY') return;
-        ctx.clearRect(0, 0, width, height);
-        if (Math.random() < 0.03 && activeBalls.length < 6) activeBalls.push(new Ball());
-        for (let i = activeBalls.length - 1; i >= 0; i--) {
-            let b = activeBalls[i]; b.update(); b.draw(ctx);
-            if (b.y - b.radius > height) activeBalls.splice(i, 1);
-        }
-        checkCollisions();
-        for (let i = popups.length - 1; i >= 0; i--) {
-            let p = popups[i]; p.update(); p.draw(ctx);
-            if (p.life <= 0) popups.splice(i, 1);
-        }
-        if (cursor.isTracking) {
-            ctx.save(); ctx.translate(cursor.x, cursor.y);
-            ctx.beginPath(); ctx.arc(0, 0, 40, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'; ctx.fill();
-            ctx.fillText("🎣", 0, 0); ctx.restore();
-        }
-        requestAnimationFrame(gameLoop);
-    }
+  showScreen('end-screen');
+}
 
-    function endGame() {
-        gameState = 'END'; clearInterval(timerInterval);
-        document.getElementById('ui-layer').style.display = 'none';
-        const endScreen = document.getElementById('end-screen'), finalScoreEl = document.getElementById('final-score'), msgEl = document.getElementById('end-message');
-        endScreen.style.display = 'flex'; finalScoreEl.innerText = score;
-        if (score >= 8) { msgEl.innerText = "ยอดเยี่ยมมาก! อัจฉริยะเคมี 🏆"; msgEl.className = "text-2xl font-bold mb-8 text-green-500"; sounds.win(); }
-        else if (score >= 5) { msgEl.innerText = "เก่งมาก พยายามอีกนิดนะ! 👍"; msgEl.className = "text-2xl font-bold mb-8 text-yellow-500"; }
-        else { msgEl.innerText = "ไม่เป็นไร ลองเล่นใหม่อีกครั้งนะ! "; msgEl.className = "text-2xl font-bold mb-8 text-gray-500"; }
-    }
+// =========================================================================
+// ปุ่มควบคุม
+// =========================================================================
+document.getElementById('btn-start').addEventListener('click', beginGameFlow);
+document.getElementById('btn-restart').addEventListener('click', beginGameFlow);
 
-    function resetGame() { ctx.clearRect(0, 0, width, height); startGame(); }
+// ปรับขนาด canvas ให้ตรงกับ stage ตอนเริ่มต้น
+resizeCanvases();
 </script>
 </body>
 </html>
-
-```
